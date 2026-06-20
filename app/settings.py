@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     model_dir: str = Field(default="./models/sam3-image", validation_alias="MODEL_DIR")
     roboflow_api_key: str = Field(default="", validation_alias="ROBOFLOW_API_KEY")
     roboflow_api_key_file: str = Field(default="", validation_alias="ROBOFLOW_API_KEY_FILE")
-    roboflow_filter_mode: str = Field(default="drawer_mat", validation_alias="ROBOFLOW_FILTER_MODE")
+    roboflow_filter_mode: str = Field(default="auto", validation_alias="ROBOFLOW_FILTER_MODE")
     calibration_board_size_mm: float = Field(
         default=556.0,
         validation_alias="CALIBRATION_BOARD_SIZE_MM",

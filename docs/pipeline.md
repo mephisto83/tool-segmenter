@@ -129,8 +129,10 @@ How it works:
 1. Detect the largest light square in the image.
 2. Fit an ordered four-corner board polygon.
 3. Compute a homography from image pixels to board millimeters.
-4. Run SAM3 with `ROBOFLOW_FILTER_MODE=light_board`.
+4. Run SAM3 with board filtering.
 5. Add per-object millimeter boxes and centroids to the JSON.
+
+The general Roboflow CLI uses `ROBOFLOW_FILTER_MODE=auto` by default. Auto mode chooses light-board filtering when it detects a large white board and otherwise uses dark drawer-mat filtering. The calibrated CLI still requests board filtering directly because millimeter output depends on that board being present.
 
 The measurement coordinate system is `board_mm_top_left_origin`: `(0, 0)` is the detected top-left board corner, and `(556, 556)` is the bottom-right board corner for a 556 mm board.
 
@@ -212,9 +214,9 @@ Add prompts:
 - `drill bit`
 - `screwdriver bit`
 
-### Off-drawer detections
+### Off-surface detections
 
-The Roboflow backend already filters against the detected drawer mat. If it is too strict or too loose, tune `min_overlap_ratio` in `_filter_to_drawer_mat()`.
+The Roboflow backend defaults to automatic work-surface filtering. It keeps detections on a detected light board when present; otherwise it filters against the detected drawer mat. If drawer filtering is too strict or too loose, tune `min_overlap_ratio` in `_filter_to_drawer_mat()`. For unusual setups, set `ROBOFLOW_FILTER_MODE=none` to inspect raw SAM3 detections.
 
 ## Recommended Development Path
 

@@ -60,7 +60,7 @@ Expected behavior:
 
 - The backend calls `https://serverless.roboflow.com/sam3/concept_segment`.
 - It receives polygon masks from SAM3.
-- It filters detections to the dark drawer mat so off-drawer objects are ignored.
+- It uses `ROBOFLOW_FILTER_MODE=auto` by default, which filters to a detected light square board when present and otherwise falls back to the dark drawer mat.
 - It writes JSON plus an annotated PNG.
 
 ## Run The API Server
@@ -128,7 +128,7 @@ python -m app.cli.segment_calibrated_image \
 
 ## Important Files
 
-- `app/backends/roboflow_sam3_backend.py`: working hosted SAM3 adapter.
+- `app/backends/roboflow_sam3_backend.py`: working hosted SAM3 adapter with automatic work-surface filtering.
 - `app/backends/opencv_backend.py`: local proposal generation and drawer-mat filtering helpers.
 - `app/calibration.py`: white square board detection and pixel-to-mm homography.
 - `app/cli/segment_calibrated_image.py`: calibrated SAM3 run with mm coordinates.

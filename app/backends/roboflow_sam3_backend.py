@@ -22,7 +22,7 @@ class RoboflowSam3Backend(SegmentationBackend):
         base_url: str,
         api_key: str = "",
         api_key_file: str = "",
-        filter_mode: str = "drawer_mat",
+        filter_mode: str = "auto",
         calibration_board_size_mm: float = 556.0,
         timeout_seconds: float = 120.0,
     ) -> None:
@@ -188,14 +188,32 @@ def _filter_to_light_board(
     ]
 
 
+def _filter_auto(
+    candidates: list[SegmentationCandidate],
+    image: Image.Image,
+    board_size_mm: float,
+) -> list[SegmentationCandidate]:
+    calibration = detect_light_square_board(image, board_size_mm)
+    if calibration is not None:
+        return [
+            candidate
+            for candidate in candidates
+            if mask_overlap_with_board(candidate.mask, calibration) >= 0.50
+        ]
+    return _filter_to_drawer_mat(candidates, image)
+
+
 def _filter_candidates(
     candidates: list[SegmentationCandidate],
     image: Image.Image,
     filter_mode: str,
     board_size_mm: float,
 ) -> list[SegmentationCandidate]:
-    if filter_mode == "none":
+    normalized_mode = filter_mode.strip().lower()
+    if normalized_mode == "none":
         return candidates
-    if filter_mode == "light_board":
+    if normalized_mode == "light_board":
         return _filter_to_light_board(candidates, image, board_size_mm)
+    if normalized_mode == "auto":
+        return _filter_auto(candidates, image, board_size_mm)
     return _filter_to_drawer_mat(candidates, image)

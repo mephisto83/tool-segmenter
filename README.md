@@ -87,7 +87,7 @@ The calibrated output adds:
 - per-object `bbox_mm_xywh`
 - per-object `centroid_mm`
 
-For white-board images, the Roboflow adapter can use `ROBOFLOW_FILTER_MODE=light_board` to keep detections on the detected board instead of filtering to a dark drawer mat.
+By default, `ROBOFLOW_FILTER_MODE=auto` makes the Roboflow adapter infer the work surface before filtering detections. It first looks for a large light square board; if one is found, detections must overlap that board. If no light board is detected, it falls back to the dark drawer mat filter. Use `light_board`, `drawer_mat`, or `none` to force a specific behavior.
 
 ## Run With OpenCV Backend
 

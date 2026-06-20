@@ -108,8 +108,10 @@ It:
 2. Sends a base64 image and text prompts to `https://serverless.roboflow.com/sam3/concept_segment`.
 3. Receives polygon masks from Roboflow SAM3.
 4. Converts polygons to boolean masks.
-5. Filters detections to the detected drawer mat to remove floor/rail/off-drawer objects.
+5. Filters detections to the inferred work surface.
 6. Returns normal `SegmentationCandidate` objects.
+
+`ROBOFLOW_FILTER_MODE=auto` is the default. In auto mode, the backend first checks whether the photo contains a large light square work surface, such as the 556 mm white board used for calibrated measurements. If detected, SAM3 candidates are kept only when their masks overlap that board. If no light board is found, the backend falls back to the dark drawer mat detector used by the OpenCV backend. Set `ROBOFLOW_FILTER_MODE=light_board`, `drawer_mat`, or `none` to force one path.
 
 Why hosted Roboflow SAM3 is used:
 
@@ -161,17 +163,18 @@ So the code expands each detection:
 
 SAM3 should receive the expanded box, not only the tight OpenCV mask.
 
-## Drawer Mat Filtering
+## Work-Surface Filtering
 
-SAM3 can detect relevant-looking tools outside the drawer if the whole photo includes nearby objects. For the sample image, the photo includes surrounding bench/floor content.
+SAM3 can detect relevant-looking tools outside the intended work area if the whole photo includes nearby objects. For the drawer sample, the photo includes surrounding bench/floor content. For calibrated photos, the target is the white measurement board rather than a dark drawer mat.
 
 To keep results focused:
 
-1. OpenCV estimates the dark drawer mat.
-2. Each SAM3 candidate mask is measured against the mat.
-3. Candidates with too little mask overlap on the mat are removed.
+1. Auto mode tries to detect a large low-saturation, high-value square board.
+2. If that board is found, each SAM3 candidate mask is measured against the board polygon.
+3. If no board is found, OpenCV estimates the dark drawer mat and measures candidates against it.
+4. Candidates with too little mask overlap on the selected surface are removed.
 
-This is a pragmatic domain constraint: the target use case is "tools in the drawer," not "all tools in the entire photo."
+This is a pragmatic domain constraint: the target use case is "tools on this surface," not "all tools in the entire photo."
 
 ## Postprocessing
 
@@ -234,4 +237,3 @@ The checked-in sample image is not the raw iPhone file. It was:
 3. Saved as a new JPEG without EXIF/GPS metadata.
 
 This keeps the public repo useful without publishing location metadata.
-
