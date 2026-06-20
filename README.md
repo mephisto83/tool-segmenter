@@ -1,0 +1,162 @@
+# Tool Segmenter
+
+Tool Segmenter is a backend-pluggable FastAPI service for segmenting hand tools and tool bits in a drawer photo. It returns one JSON object per detected item with a label, score, bounding boxes, centroid, pixel area, polygon outline, holes, and optional mask RLE.
+
+The default backend is `mock`, so the API, CLI, postprocessing, visualization, and tests work before a local SAM3/MLX model is installed.
+
+## Setup
+
+With `uv`:
+
+```bash
+uv venv
+source .venv/bin/activate
+uv pip install -e '.[dev]'
+```
+
+With `venv` and `pip`:
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+```
+
+Copy the example environment file:
+
+```bash
+cp .env.example .env
+```
+
+## Run With Mock Backend
+
+```bash
+SEGMENTER_BACKEND=mock uvicorn app.main:app --reload
+```
+
+Health check:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Segment an image:
+
+```bash
+curl -X POST "http://localhost:8000/segment-tools" \
+  -F "image=@/path/to/tool_drawer.jpg" \
+  -F 'prompts=["screwdriver","screwdriver bit","drill bit","scissors","pliers","hand tool"]' \
+  -F "min_score=0.2"
+```
+
+Create an annotated PNG:
+
+```bash
+curl -X POST "http://localhost:8000/annotate-tools" \
+  -F "image=@/path/to/tool_drawer.jpg" \
+  --output sample_outputs/annotated.png
+```
+
+## CLI
+
+```bash
+python -m app.cli.segment_image \
+  --image /path/to/tool_drawer.jpg \
+  --out sample_outputs/output.json \
+  --backend mock \
+  --prompts "screwdriver,drill bit,scissors" \
+  --annotated sample_outputs/annotated.png \
+  --min-score 0.25
+```
+
+## Local SAM3/MLX Backend
+
+The `sam3_mlx` adapter is intentionally isolated and conservative. It does not guess at the local SAM3/MLX Python API. After downloading or installing the actual model/package, inspect the package entry points and implement `Sam3MlxBackend.segment()` around the real API.
+
+Expected model location:
+
+```bash
+mkdir -p models/sam3-image
+# Download the SAM3-compatible MLX image model files into ./models/sam3-image.
+```
+
+Optional local dependencies:
+
+```bash
+pip install -e '.[sam3-mlx]'
+```
+
+Run:
+
+```bash
+SEGMENTER_BACKEND=sam3_mlx MODEL_DIR=./models/sam3-image uvicorn app.main:app --reload
+```
+
+If the model directory or MLX dependency is missing, `/health` and `/segment-tools` return a clear unavailable message instead of a stack trace.
+
+## Roboflow SAM3 Backend
+
+The Roboflow adapter calls an isolated HTTP endpoint at `ROBOFLOW_BASE_URL`.
+
+```bash
+SEGMENTER_BACKEND=roboflow_sam3 \
+ROBOFLOW_BASE_URL=http://localhost:9001 \
+ROBOFLOW_API_KEY=... \
+uvicorn app.main:app --reload
+```
+
+The adapter posts PNG bytes and prompts to `POST /segment` on that service, then maps predictions into the shared `SegmentationCandidate` interface.
+
+## Example Response
+
+```json
+{
+  "image": {
+    "width": 1536,
+    "height": 2048
+  },
+  "backend": "mock",
+  "objects": [
+    {
+      "id": "obj_0001",
+      "label": "blue handle screwdriver",
+      "source_prompt": "blue handle screwdriver",
+      "score": 0.88,
+      "bbox_xyxy": [245, 286, 399, 1597],
+      "bbox_xywh": [245, 286, 154, 1311],
+      "bbox_normalized_xyxy": [0.1595, 0.1396, 0.2598, 0.7798],
+      "centroid_xy": [322, 941],
+      "area_px": 201894,
+      "outline": [[245, 286], [245, 1596], [398, 1596], [398, 286]],
+      "holes": [],
+      "mask_rle": null
+    }
+  ],
+  "timing_ms": {
+    "total": 12,
+    "model": 1,
+    "postprocess": 4
+  }
+}
+```
+
+## Prompt And Threshold Tuning
+
+The default prompt set mixes generic and specific labels so multiple prompts can find the same object from different angles. Postprocessing deduplicates overlapping masks and prefers a more specific label, such as `blue handle screwdriver`, over `hand tool` when scores are close.
+
+Useful environment knobs:
+
+- `MIN_SCORE`
+- `DEDUP_MASK_IOU_THRESHOLD`
+- `DEDUP_BOX_IOU_THRESHOLD`
+- `CONTOUR_EPSILON_RATIO`
+- `MAX_IMAGE_SIDE`
+- `MIN_AREA_PX`
+
+## Tests And Lint
+
+```bash
+pytest
+ruff check .
+```
+
