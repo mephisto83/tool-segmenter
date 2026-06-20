@@ -58,6 +58,11 @@ python -m app.cli.segment_image \
 
 See `CODEX.md` for a step-by-step handoff aimed at Codex or another developer on a fresh machine.
 
+For deeper implementation notes, see:
+
+- `docs/architecture.md`
+- `docs/pipeline.md`
+
 ## Run With OpenCV Backend
 
 ```bash

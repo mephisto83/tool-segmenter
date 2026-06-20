@@ -120,4 +120,5 @@ python -m app.cli.export_multiview_regions \
 - `app/backends/sam3_multiview_backend.py`: future local SAM3 multiview orchestration.
 - `sample_inputs/tool_drawer_sample.jpeg`: metadata-stripped sample image.
 - `.env.example`: environment variable reference.
-
+- `docs/architecture.md`: decisions, backend boundaries, and data flow.
+- `docs/pipeline.md`: how to run and compare each segmentation pipeline.
