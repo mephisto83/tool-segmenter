@@ -5,11 +5,12 @@ from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
+from PIL import Image, ImageOps
 
 from app.backends import (
     BackendUnavailable,
     MockSegmentationBackend,
+    OpenCvToolBackend,
     RoboflowSam3Backend,
     Sam3MlxBackend,
     SegmentationBackend,
@@ -167,6 +168,8 @@ def get_backend(
 
     if backend_name == "mock":
         backend: SegmentationBackend = MockSegmentationBackend()
+    elif backend_name == "opencv":
+        backend = OpenCvToolBackend()
     elif backend_name == "sam3_mlx":
         backend = Sam3MlxBackend(active_settings.model_dir)
     elif backend_name == "roboflow_sam3":
@@ -197,7 +200,7 @@ def parse_prompts(raw_prompts: str | None) -> list[str]:
 async def _read_upload_image(upload: UploadFile) -> Image.Image:
     try:
         data = await upload.read()
-        return Image.open(BytesIO(data)).convert("RGB")
+        return ImageOps.exif_transpose(Image.open(BytesIO(data))).convert("RGB")
     except Exception as exc:
         raise HTTPException(status_code=422, detail="image must be a readable RGB image") from exc
 

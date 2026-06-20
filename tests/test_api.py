@@ -3,10 +3,14 @@ from io import BytesIO
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app.main import app
+from app import main as main_module
+
+app = main_module.app
 
 
 def test_segment_tools_endpoint_with_mock_backend() -> None:
+    main_module.settings.segmenter_backend = "mock"
+    main_module._backend_cache.clear()
     client = TestClient(app)
     image_buffer = BytesIO()
     Image.new("RGB", (160, 120), color=(240, 240, 240)).save(image_buffer, format="PNG")
@@ -25,4 +29,3 @@ def test_segment_tools_endpoint_with_mock_backend() -> None:
     assert len(payload["objects"]) >= 2
     first_object = payload["objects"][0]
     assert {"label", "bbox_xyxy", "bbox_xywh", "centroid_xy", "outline"} <= first_object.keys()
-

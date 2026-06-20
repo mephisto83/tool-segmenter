@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 from fastapi import HTTPException
-from PIL import Image
+from PIL import Image, ImageOps
 
 from app.main import run_segmentation
 from app.prompts import DEFAULT_TOOL_PROMPTS
@@ -15,7 +15,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Segment tools in a local image.")
     parser.add_argument("--image", required=True, help="Path to the input image.")
     parser.add_argument("--out", required=True, help="Path to write JSON output.")
-    parser.add_argument("--backend", choices=["mock", "sam3_mlx", "roboflow_sam3"], default=None)
+    parser.add_argument(
+        "--backend",
+        choices=["mock", "opencv", "sam3_mlx", "roboflow_sam3"],
+        default=None,
+    )
     parser.add_argument("--prompts", default=None, help="Comma-separated prompt list.")
     parser.add_argument(
         "--annotated",
@@ -29,7 +33,7 @@ def main() -> None:
     backend_name: BackendName = args.backend or active_settings.segmenter_backend
     prompts = _parse_cli_prompts(args.prompts)
 
-    image = Image.open(args.image).convert("RGB")
+    image = ImageOps.exif_transpose(Image.open(args.image)).convert("RGB")
     try:
         result = run_segmentation(
             image,

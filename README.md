@@ -2,7 +2,7 @@
 
 Tool Segmenter is a backend-pluggable FastAPI service for segmenting hand tools and tool bits in a drawer photo. It returns one JSON object per detected item with a label, score, bounding boxes, centroid, pixel area, polygon outline, holes, and optional mask RLE.
 
-The default backend is `mock`, so the API, CLI, postprocessing, visualization, and tests work before a local SAM3/MLX model is installed.
+The default backend is `opencv`, a lightweight pixel-based detector for drawer photos. The `mock` backend is still available so the API, CLI, postprocessing, visualization, and tests work before any model integration is installed.
 
 ## Setup
 
@@ -27,6 +27,14 @@ Copy the example environment file:
 ```bash
 cp .env.example .env
 ```
+
+## Run With OpenCV Backend
+
+```bash
+SEGMENTER_BACKEND=opencv uvicorn app.main:app --reload
+```
+
+The OpenCV backend finds the dark drawer mat, segments saturated colored handles plus bright metal shafts, groups aligned components into individual tool candidates, and returns polygon outlines. It is useful for fast local debugging, but black tools on a black mat and semantic labels still need a promptable model backend such as SAM3.
 
 ## Run With Mock Backend
 
@@ -63,7 +71,7 @@ curl -X POST "http://localhost:8000/annotate-tools" \
 python -m app.cli.segment_image \
   --image /path/to/tool_drawer.jpg \
   --out sample_outputs/output.json \
-  --backend mock \
+  --backend opencv \
   --prompts "screwdriver,drill bit,scissors" \
   --annotated sample_outputs/annotated.png \
   --min-score 0.25
@@ -159,4 +167,3 @@ Useful environment knobs:
 pytest
 ruff check .
 ```
-

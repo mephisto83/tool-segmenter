@@ -3,13 +3,13 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BackendName = Literal["mock", "sam3_mlx", "roboflow_sam3"]
+BackendName = Literal["mock", "opencv", "sam3_mlx", "roboflow_sam3"]
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    segmenter_backend: BackendName = Field(default="mock", validation_alias="SEGMENTER_BACKEND")
+    segmenter_backend: BackendName = Field(default="opencv", validation_alias="SEGMENTER_BACKEND")
     model_dir: str = Field(default="./models/sam3-image", validation_alias="MODEL_DIR")
     roboflow_api_key: str = Field(default="", validation_alias="ROBOFLOW_API_KEY")
     roboflow_base_url: str = Field(
@@ -28,4 +28,3 @@ class Settings(BaseSettings):
     contour_epsilon_ratio: float = Field(default=0.003, validation_alias="CONTOUR_EPSILON_RATIO")
     max_image_side: int = Field(default=1600, validation_alias="MAX_IMAGE_SIDE")
     min_area_px: int = Field(default=16, validation_alias="MIN_AREA_PX")
-
