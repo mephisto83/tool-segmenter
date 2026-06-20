@@ -10,6 +10,7 @@ from PIL import Image, ImageOps
 from app.backends import (
     BackendUnavailable,
     MockSegmentationBackend,
+    OpenCvBackgroundRefinedBackend,
     OpenCvToolBackend,
     RoboflowSam3Backend,
     Sam3MlxBackend,
@@ -170,6 +171,8 @@ def get_backend(
         backend: SegmentationBackend = MockSegmentationBackend()
     elif backend_name == "opencv":
         backend = OpenCvToolBackend()
+    elif backend_name == "opencv_bg_refined":
+        backend = OpenCvBackgroundRefinedBackend()
     elif backend_name == "sam3_mlx":
         backend = Sam3MlxBackend(active_settings.model_dir)
     elif backend_name == "roboflow_sam3":

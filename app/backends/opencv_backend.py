@@ -18,6 +18,9 @@ class _SeedComponent:
 class OpenCvToolBackend(SegmentationBackend):
     name = "opencv"
 
+    def __init__(self, *, use_background_refinement: bool = False) -> None:
+        self.use_background_refinement = use_background_refinement
+
     def segment(self, image: Image.Image, prompts: list[str]) -> list[SegmentationCandidate]:
         del prompts
         rgb = np.array(image.convert("RGB"))
@@ -26,12 +29,14 @@ class OpenCvToolBackend(SegmentationBackend):
         mat_mask = _detect_dark_drawer_mat(hsv)
         mat_bbox = mask_to_bbox(mat_mask.astype(bool)) or (0, 0, image.size[0], image.size[1])
         seed_mask = _build_foreground_seed(hsv, mat_mask)
+        background_like = _estimate_background_like_mask(rgb, hsv, mat_mask, seed_mask.astype(bool))
         components, labels = _seed_components(seed_mask, mat_mask)
         groups = _group_components(components)
 
         candidates: list[SegmentationCandidate] = []
         for group in groups:
-            mask = _group_to_mask(group, labels, image.size[::-1])
+            seed_group_mask = _group_to_seed_mask(group, labels, image.size[::-1])
+            mask = _seed_mask_to_hull(seed_group_mask)
             bbox = mask_to_bbox(mask)
             if bbox is None:
                 continue
@@ -41,6 +46,16 @@ class OpenCvToolBackend(SegmentationBackend):
                 image_size=image.size,
                 clip_bbox=mat_bbox,
             )
+            if self.use_background_refinement:
+                mask = _refine_mask_with_background_inversion(
+                    rgb,
+                    seed_group_mask,
+                    mask,
+                    mat_mask,
+                    background_like,
+                    refinement_bbox,
+                )
+                bbox = mask_to_bbox(mask) or bbox
             candidates.append(
                 SegmentationCandidate(
                     label=label,
@@ -52,6 +67,13 @@ class OpenCvToolBackend(SegmentationBackend):
                 )
             )
         return candidates
+
+
+class OpenCvBackgroundRefinedBackend(OpenCvToolBackend):
+    name = "opencv_bg_refined"
+
+    def __init__(self) -> None:
+        super().__init__(use_background_refinement=True)
 
 
 def expand_bbox_for_refinement(
@@ -261,30 +283,188 @@ def _should_group(
     return False
 
 
-def _group_to_mask(
+def _group_to_seed_mask(
     group: list[_SeedComponent],
     labels: np.ndarray,
     shape: tuple[int, int],
 ) -> np.ndarray:
     height, width = shape
     seed = np.zeros((height, width), dtype=np.uint8)
-    points: list[np.ndarray] = []
     for component in group:
         component_mask = labels == component.label_id
         seed[component_mask] = 255
-        ys, xs = np.where(component_mask)
-        if xs.size:
-            points.append(np.column_stack([xs, ys]).astype(np.int32))
+    return seed.astype(bool)
 
-    if not points:
-        return seed.astype(bool)
 
-    all_points = np.vstack(points)
+def _seed_mask_to_hull(seed_mask: np.ndarray) -> np.ndarray:
+    ys, xs = np.where(seed_mask)
+    if xs.size == 0:
+        return seed_mask.astype(bool)
+
+    all_points = np.column_stack([xs, ys]).astype(np.int32)
     hull = cv2.convexHull(all_points)
-    mask = np.zeros_like(seed)
+    mask = np.zeros(seed_mask.shape, dtype=np.uint8)
     cv2.fillConvexPoly(mask, hull, 255)
     mask = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)), iterations=1)
     return mask.astype(bool)
+
+
+def _refine_mask_with_background_inversion(
+    rgb: np.ndarray,
+    seed_mask: np.ndarray,
+    fallback_mask: np.ndarray,
+    mat_mask: np.ndarray,
+    background_like: np.ndarray,
+    refinement_bbox: tuple[int, int, int, int],
+) -> np.ndarray:
+    if np.count_nonzero(seed_mask) < 20:
+        return fallback_mask
+
+    x1, y1, x2, y2 = refinement_bbox
+    if x2 <= x1 or y2 <= y1:
+        return fallback_mask
+
+    crop_rgb = rgb[y1:y2, x1:x2].copy()
+    crop_seed = seed_mask[y1:y2, x1:x2]
+    crop_mat = mat_mask[y1:y2, x1:x2].astype(bool)
+    crop_background = background_like[y1:y2, x1:x2]
+    if crop_rgb.size == 0 or np.count_nonzero(crop_seed) < 20:
+        return fallback_mask
+
+    grabcut_mask = np.full(crop_seed.shape, cv2.GC_PR_BGD, dtype=np.uint8)
+    grabcut_mask[crop_background] = cv2.GC_BGD
+    grabcut_mask[~crop_background] = cv2.GC_PR_FGD
+
+    crop_foreground = cv2.dilate(
+        crop_seed.astype(np.uint8) * 255,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)),
+        iterations=1,
+    ).astype(bool)
+    grabcut_mask[crop_foreground] = cv2.GC_FGD
+
+    try:
+        bgd_model = np.zeros((1, 65), dtype=np.float64)
+        fgd_model = np.zeros((1, 65), dtype=np.float64)
+        cv2.grabCut(
+            crop_rgb,
+            grabcut_mask,
+            None,
+            bgd_model,
+            fgd_model,
+            2,
+            cv2.GC_INIT_WITH_MASK,
+        )
+    except cv2.error:
+        return fallback_mask
+
+    refined_crop = np.isin(grabcut_mask, (cv2.GC_FGD, cv2.GC_PR_FGD))
+    refined_crop &= crop_mat
+    refined_crop = _keep_components_intersecting_seed(refined_crop, crop_seed)
+    refined_crop = cv2.morphologyEx(
+        refined_crop.astype(np.uint8) * 255,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)),
+    ).astype(bool)
+
+    refined = np.zeros_like(seed_mask, dtype=bool)
+    refined[y1:y2, x1:x2] = refined_crop
+    return _choose_refined_or_fallback(refined, fallback_mask, seed_mask, refinement_bbox)
+
+
+def _estimate_background_like_mask(
+    rgb: np.ndarray,
+    hsv: np.ndarray,
+    mat_mask: np.ndarray,
+    seed_mask: np.ndarray,
+) -> np.ndarray:
+    mat = mat_mask.astype(bool)
+    saturation = hsv[:, :, 1]
+    value = hsv[:, :, 2]
+    seed_dilated = cv2.dilate(
+        seed_mask.astype(np.uint8) * 255,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31)),
+        iterations=1,
+    ).astype(bool)
+    sample_mask = mat & ~seed_dilated & (value < 125) & (saturation < 90)
+    if np.count_nonzero(sample_mask) < 100:
+        sample_mask = mat & ~seed_dilated
+    if np.count_nonzero(sample_mask) < 100:
+        sample_mask = mat
+
+    lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).astype(np.float32)
+    samples = lab[sample_mask]
+    median = np.median(samples, axis=0)
+    mad = np.median(np.abs(samples - median), axis=0)
+    scale = np.maximum(mad * 3.5, np.array([18.0, 8.0, 8.0], dtype=np.float32))
+    normalized = (lab - median) / scale
+    distance = np.sqrt(np.sum(normalized**2, axis=2))
+
+    background_like = mat & (distance < 1.35) & (value < 155) & (saturation < 120)
+    background_like = cv2.morphologyEx(
+        background_like.astype(np.uint8) * 255,
+        cv2.MORPH_OPEN,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)),
+    ).astype(bool)
+    return background_like
+
+
+def _keep_components_intersecting_seed(refined: np.ndarray, seed_mask: np.ndarray) -> np.ndarray:
+    component_count, labels, stats, _ = cv2.connectedComponentsWithStats(
+        refined.astype(np.uint8),
+        8,
+    )
+    output = np.zeros_like(refined, dtype=bool)
+    for label_id in range(1, component_count):
+        component = labels == label_id
+        if stats[label_id, cv2.CC_STAT_AREA] < 25:
+            continue
+        if np.logical_and(component, seed_mask).any():
+            output |= component
+    return output
+
+
+def _choose_refined_or_fallback(
+    refined: np.ndarray,
+    fallback: np.ndarray,
+    seed_mask: np.ndarray,
+    refinement_bbox: tuple[int, int, int, int],
+) -> np.ndarray:
+    refined_area = int(np.count_nonzero(refined))
+    fallback_area = int(np.count_nonzero(fallback))
+    seed_area = int(np.count_nonzero(seed_mask))
+    x1, y1, x2, y2 = refinement_bbox
+    refinement_area = max(1, (x2 - x1) * (y2 - y1))
+    if refined_area < max(seed_area, 25):
+        return fallback
+    if refined_area > refinement_area * 0.88:
+        return fallback
+    if refined_area < fallback_area * 0.72:
+        return fallback
+    if _refinement_crosses_neighbor_risk(refined, fallback):
+        return fallback
+    return refined
+
+
+def _refinement_crosses_neighbor_risk(refined: np.ndarray, fallback: np.ndarray) -> bool:
+    refined_bbox = mask_to_bbox(refined)
+    fallback_bbox = mask_to_bbox(fallback)
+    if refined_bbox is None or fallback_bbox is None:
+        return True
+
+    fallback_width = fallback_bbox[2] - fallback_bbox[0]
+    fallback_height = fallback_bbox[3] - fallback_bbox[1]
+    refined_width = refined_bbox[2] - refined_bbox[0]
+    refined_height = refined_bbox[3] - refined_bbox[1]
+
+    if fallback_height > fallback_width * 1.5 and refined_width > fallback_width * 1.8:
+        return True
+    if fallback_width > fallback_height * 2.0 and refined_height > fallback_height * 2.4:
+        return True
+    if refined_width > fallback_width * 2.3 and refined_height > fallback_height * 1.4:
+        return True
+    if refined_height > fallback_height * 2.3 and refined_width > fallback_width * 1.4:
+        return True
+    return False
 
 
 def _infer_label(bbox: tuple[int, int, int, int]) -> str:

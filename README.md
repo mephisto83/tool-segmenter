@@ -36,6 +36,8 @@ SEGMENTER_BACKEND=opencv uvicorn app.main:app --reload
 
 The OpenCV backend finds the dark drawer mat, segments saturated colored handles plus bright metal shafts, groups aligned components into individual tool candidates, and returns polygon outlines. It also returns `refinement_bbox_xyxy`, a padded region clipped to the drawer mat for a SAM-style backend to refine when OpenCV only sees part of an object. It is useful for fast local debugging, but black tools on a black mat and semantic labels still need a promptable model backend such as SAM3.
 
+There is also an experimental `opencv_bg_refined` backend. It estimates the drawer-mat background, inverts that background inside each padded refinement region, and runs crop-local GrabCut seeded by the OpenCV mask. This can recover more of partial objects, but it may bridge nearby tools in dense areas, so `opencv` remains the conservative default.
+
 ## Run With Mock Backend
 
 ```bash

@@ -17,7 +17,7 @@ def main() -> None:
     parser.add_argument("--out", required=True, help="Path to write JSON output.")
     parser.add_argument(
         "--backend",
-        choices=["mock", "opencv", "sam3_mlx", "roboflow_sam3"],
+        choices=["mock", "opencv", "opencv_bg_refined", "sam3_mlx", "roboflow_sam3"],
         default=None,
     )
     parser.add_argument("--prompts", default=None, help="Comma-separated prompt list.")
