@@ -38,6 +38,35 @@ The OpenCV backend finds the dark drawer mat, segments saturated colored handles
 
 There is also an experimental `opencv_bg_refined` backend. It estimates the drawer-mat background, inverts that background inside each padded refinement region, and runs crop-local GrabCut seeded by the OpenCV mask. This can recover more of partial objects, but it may bridge nearby tools in dense areas, so `opencv` remains the conservative default.
 
+## SAM3 Multiview Refinement
+
+The `sam3_multiview` backend is the intended high-quality refinement path:
+
+1. Run conservative OpenCV to propose individual tool regions.
+2. Expand each partial detection into `refinement_bbox_xyxy`.
+3. Generate multiple views of the same image:
+   - `original`
+   - `clahe_luminance`
+   - `grayscale_clahe`
+   - `color_boost`
+   - `background_residual`
+4. Crop each view to the refinement box.
+5. Ask SAM3 to segment the tool inside each crop.
+6. Map masks back to original image coordinates, score them by consensus, and dedupe.
+
+The repo does not hard-code the SAM3/MLX call yet because no local SAM3 package/model API is installed in this environment. Until that is available, `sam3_multiview` reports a clear unavailable message.
+
+You can export the exact multiview crop pack that SAM3 should consume:
+
+```bash
+python -m app.cli.export_multiview_regions \
+  --image /path/to/tool_drawer.jpg \
+  --out-dir sample_outputs/multiview_pack \
+  --backend opencv
+```
+
+The export writes full image views, per-object crop views, and `manifest.json` with each region's source bbox and padded refinement bbox.
+
 ## Run With Mock Backend
 
 ```bash

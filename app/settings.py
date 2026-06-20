@@ -3,7 +3,14 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BackendName = Literal["mock", "opencv", "opencv_bg_refined", "sam3_mlx", "roboflow_sam3"]
+BackendName = Literal[
+    "mock",
+    "opencv",
+    "opencv_bg_refined",
+    "sam3_mlx",
+    "sam3_multiview",
+    "roboflow_sam3",
+]
 
 
 class Settings(BaseSettings):

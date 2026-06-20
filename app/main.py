@@ -14,6 +14,7 @@ from app.backends import (
     OpenCvToolBackend,
     RoboflowSam3Backend,
     Sam3MlxBackend,
+    Sam3MultiViewBackend,
     SegmentationBackend,
 )
 from app.postprocess import candidates_to_response_objects, dedupe_candidates, filter_candidates
@@ -175,6 +176,8 @@ def get_backend(
         backend = OpenCvBackgroundRefinedBackend()
     elif backend_name == "sam3_mlx":
         backend = Sam3MlxBackend(active_settings.model_dir)
+    elif backend_name == "sam3_multiview":
+        backend = Sam3MultiViewBackend(active_settings)
     elif backend_name == "roboflow_sam3":
         backend = RoboflowSam3Backend(
             active_settings.roboflow_base_url,
