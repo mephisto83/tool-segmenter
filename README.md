@@ -135,16 +135,31 @@ If the model directory or MLX dependency is missing, `/health` and `/segment-too
 
 ## Roboflow SAM3 Backend
 
-The Roboflow adapter calls an isolated HTTP endpoint at `ROBOFLOW_BASE_URL`.
+The Roboflow adapter calls the hosted SAM3 concept-segmentation endpoint at
+`ROBOFLOW_BASE_URL`, defaulting to `https://serverless.roboflow.com`.
 
 ```bash
 SEGMENTER_BACKEND=roboflow_sam3 \
-ROBOFLOW_BASE_URL=http://localhost:9001 \
-ROBOFLOW_API_KEY=... \
+ROBOFLOW_API_KEY_FILE=/path/to/roboflow/apikey \
 uvicorn app.main:app --reload
 ```
 
-The adapter posts PNG bytes and prompts to `POST /segment` on that service, then maps predictions into the shared `SegmentationCandidate` interface.
+You can also use `ROBOFLOW_API_KEY=...` directly. The adapter posts base64 image
+bytes and text prompts to `/sam3/concept_segment`, parses polygon masks, filters
+off-drawer detections using the detected drawer mat, and maps predictions into
+the shared `SegmentationCandidate` interface.
+
+Example CLI run:
+
+```bash
+ROBOFLOW_API_KEY_FILE=/path/to/roboflow/apikey \
+python -m app.cli.segment_image \
+  --image /path/to/tool_drawer.jpg \
+  --out sample_outputs/roboflow_sam3.json \
+  --backend roboflow_sam3 \
+  --prompts "screwdriver,tool bit,scissors,pliers,hand tool" \
+  --annotated sample_outputs/roboflow_sam3.png
+```
 
 ## Example Response
 

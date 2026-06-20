@@ -19,8 +19,9 @@ class Settings(BaseSettings):
     segmenter_backend: BackendName = Field(default="opencv", validation_alias="SEGMENTER_BACKEND")
     model_dir: str = Field(default="./models/sam3-image", validation_alias="MODEL_DIR")
     roboflow_api_key: str = Field(default="", validation_alias="ROBOFLOW_API_KEY")
+    roboflow_api_key_file: str = Field(default="", validation_alias="ROBOFLOW_API_KEY_FILE")
     roboflow_base_url: str = Field(
-        default="http://localhost:9001",
+        default="https://serverless.roboflow.com",
         validation_alias="ROBOFLOW_BASE_URL",
     )
     min_score: float = Field(default=0.20, validation_alias="MIN_SCORE")

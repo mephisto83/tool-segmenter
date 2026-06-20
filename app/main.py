@@ -182,6 +182,7 @@ def get_backend(
         backend = RoboflowSam3Backend(
             active_settings.roboflow_base_url,
             active_settings.roboflow_api_key,
+            active_settings.roboflow_api_key_file,
         )
     else:
         raise ValueError(f"Unknown backend: {backend_name}")
