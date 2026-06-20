@@ -28,6 +28,36 @@ Copy the example environment file:
 cp .env.example .env
 ```
 
+## Quick Start With Sample Image
+
+This repo includes a metadata-stripped sample drawer image:
+
+`sample_inputs/tool_drawer_sample.jpeg`
+
+Run the local OpenCV backend:
+
+```bash
+python -m app.cli.segment_image \
+  --image sample_inputs/tool_drawer_sample.jpeg \
+  --out sample_outputs/opencv_sample.json \
+  --backend opencv \
+  --annotated sample_outputs/opencv_sample.png
+```
+
+Run real SAM3 through Roboflow after setting an API key:
+
+```bash
+ROBOFLOW_API_KEY_FILE=~/Documents/roboflow/apikey \
+python -m app.cli.segment_image \
+  --image sample_inputs/tool_drawer_sample.jpeg \
+  --out sample_outputs/roboflow_sam3_sample.json \
+  --backend roboflow_sam3 \
+  --prompts "screwdriver,tool bit,scissors,pliers,hand tool" \
+  --annotated sample_outputs/roboflow_sam3_sample.png
+```
+
+See `CODEX.md` for a step-by-step handoff aimed at Codex or another developer on a fresh machine.
+
 ## Run With OpenCV Backend
 
 ```bash
