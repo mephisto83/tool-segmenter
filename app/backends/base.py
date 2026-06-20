@@ -17,6 +17,7 @@ class SegmentationCandidate:
     score: float
     bbox_xyxy: tuple[int, int, int, int]
     mask: np.ndarray
+    refinement_bbox_xyxy: tuple[int, int, int, int] | None = None
 
     def __post_init__(self) -> None:
         self.mask = self.mask.astype(bool, copy=False)
@@ -35,4 +36,3 @@ class SegmentationBackend(ABC):
             "model_loaded": False,
             "message": None,
         }
-

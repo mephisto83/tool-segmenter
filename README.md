@@ -34,7 +34,7 @@ cp .env.example .env
 SEGMENTER_BACKEND=opencv uvicorn app.main:app --reload
 ```
 
-The OpenCV backend finds the dark drawer mat, segments saturated colored handles plus bright metal shafts, groups aligned components into individual tool candidates, and returns polygon outlines. It is useful for fast local debugging, but black tools on a black mat and semantic labels still need a promptable model backend such as SAM3.
+The OpenCV backend finds the dark drawer mat, segments saturated colored handles plus bright metal shafts, groups aligned components into individual tool candidates, and returns polygon outlines. It also returns `refinement_bbox_xyxy`, a padded region clipped to the drawer mat for a SAM-style backend to refine when OpenCV only sees part of an object. It is useful for fast local debugging, but black tools on a black mat and semantic labels still need a promptable model backend such as SAM3.
 
 ## Run With Mock Backend
 
@@ -133,6 +133,8 @@ The adapter posts PNG bytes and prompts to `POST /segment` on that service, then
       "bbox_xyxy": [245, 286, 399, 1597],
       "bbox_xywh": [245, 286, 154, 1311],
       "bbox_normalized_xyxy": [0.1595, 0.1396, 0.2598, 0.7798],
+      "refinement_bbox_xyxy": [210, 244, 434, 1639],
+      "refinement_bbox_normalized_xyxy": [0.1367, 0.1191, 0.2826, 0.8003],
       "centroid_xy": [322, 941],
       "area_px": 201894,
       "outline": [[245, 286], [245, 1596], [398, 1596], [398, 286]],

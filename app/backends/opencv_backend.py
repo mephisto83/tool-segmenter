@@ -24,6 +24,7 @@ class OpenCvToolBackend(SegmentationBackend):
         bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
         hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
         mat_mask = _detect_dark_drawer_mat(hsv)
+        mat_bbox = mask_to_bbox(mat_mask.astype(bool)) or (0, 0, image.size[0], image.size[1])
         seed_mask = _build_foreground_seed(hsv, mat_mask)
         components, labels = _seed_components(seed_mask, mat_mask)
         groups = _group_components(components)
@@ -35,6 +36,11 @@ class OpenCvToolBackend(SegmentationBackend):
             if bbox is None:
                 continue
             label = _infer_label(bbox)
+            refinement_bbox = expand_bbox_for_refinement(
+                bbox,
+                image_size=image.size,
+                clip_bbox=mat_bbox,
+            )
             candidates.append(
                 SegmentationCandidate(
                     label=label,
@@ -42,9 +48,46 @@ class OpenCvToolBackend(SegmentationBackend):
                     score=_score_group(group, bbox),
                     bbox_xyxy=bbox,
                     mask=mask,
+                    refinement_bbox_xyxy=refinement_bbox,
                 )
             )
         return candidates
+
+
+def expand_bbox_for_refinement(
+    bbox: tuple[int, int, int, int],
+    image_size: tuple[int, int],
+    clip_bbox: tuple[int, int, int, int] | None = None,
+) -> tuple[int, int, int, int]:
+    """Expand a partial evidence box into the crop/box SAM-style refinement should see."""
+    image_width, image_height = image_size
+    x1, y1, x2, y2 = bbox
+    width = max(1, x2 - x1)
+    height = max(1, y2 - y1)
+
+    pad_x = max(18, round(width * 0.28))
+    pad_y = max(18, round(height * 0.18))
+
+    if height > width * 2.2:
+        pad_x = max(pad_x, round(width * 0.75), 34)
+        pad_y = max(pad_y, round(height * 0.16), 42)
+    elif width > height * 2.2:
+        pad_x = max(pad_x, round(width * 0.15), 48)
+        pad_y = max(pad_y, round(height * 1.25), 34)
+    else:
+        pad_x = max(pad_x, round(width * 0.35))
+        pad_y = max(pad_y, round(height * 0.35))
+
+    if min(width, height) < 55 and max(width, height) > 110:
+        if height >= width:
+            pad_x = max(pad_x, 46)
+            pad_y = max(pad_y, round(height * 0.22))
+        else:
+            pad_x = max(pad_x, round(width * 0.18))
+            pad_y = max(pad_y, 46)
+
+    expanded = (x1 - pad_x, y1 - pad_y, x2 + pad_x, y2 + pad_y)
+    return _clip_box(expanded, clip_bbox or (0, 0, image_width, image_height))
 
 
 def _detect_dark_drawer_mat(hsv: np.ndarray) -> np.ndarray:
@@ -305,3 +348,16 @@ def _axis_gap(
     if axis == "x":
         return max(0, max(left[0], right[0]) - min(left[2], right[2]))
     return max(0, max(left[1], right[1]) - min(left[3], right[3]))
+
+
+def _clip_box(
+    box: tuple[int, int, int, int],
+    clip_bbox: tuple[int, int, int, int],
+) -> tuple[int, int, int, int]:
+    x1, y1, x2, y2 = box
+    clip_x1, clip_y1, clip_x2, clip_y2 = clip_bbox
+    clipped_x1 = max(clip_x1, min(clip_x2, x1))
+    clipped_y1 = max(clip_y1, min(clip_y2, y1))
+    clipped_x2 = max(clipped_x1 + 1, min(clip_x2, x2))
+    clipped_y2 = max(clipped_y1 + 1, min(clip_y2, y2))
+    return clipped_x1, clipped_y1, clipped_x2, clipped_y2

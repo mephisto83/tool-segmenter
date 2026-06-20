@@ -174,6 +174,10 @@ def candidates_to_response_objects(
         )
         if not outline:
             outline = _box_outline(bbox)
+        refinement_bbox = candidate.refinement_bbox_xyxy
+        normalized_refinement_bbox = (
+            _normalize_box(refinement_bbox, width, height) if refinement_bbox else None
+        )
 
         objects.append(
             ToolObject(
@@ -183,12 +187,9 @@ def candidates_to_response_objects(
                 score=round(float(candidate.score), 4),
                 bbox_xyxy=bbox,
                 bbox_xywh=(xmin, ymin, xmax - xmin, ymax - ymin),
-                bbox_normalized_xyxy=(
-                    round(xmin / width, 4),
-                    round(ymin / height, 4),
-                    round(xmax / width, 4),
-                    round(ymax / height, 4),
-                ),
+                bbox_normalized_xyxy=_normalize_box(bbox, width, height),
+                refinement_bbox_xyxy=refinement_bbox,
+                refinement_bbox_normalized_xyxy=normalized_refinement_bbox,
                 centroid_xy=centroid,
                 area_px=mask_area(candidate.mask),
                 outline=outline,
@@ -245,6 +246,20 @@ def _border_area_ratio(mask: np.ndarray) -> float:
 def _box_outline(box: tuple[int, int, int, int]) -> list[tuple[int, int]]:
     xmin, ymin, xmax, ymax = box
     return [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
+
+
+def _normalize_box(
+    box: tuple[int, int, int, int],
+    width: int,
+    height: int,
+) -> tuple[float, float, float, float]:
+    xmin, ymin, xmax, ymax = box
+    return (
+        round(xmin / width, 4),
+        round(ymin / height, 4),
+        round(xmax / width, 4),
+        round(ymax / height, 4),
+    )
 
 
 def _encode_binary_rle(mask: np.ndarray) -> list[int]:

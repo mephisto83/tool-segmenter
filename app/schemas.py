@@ -20,25 +20,34 @@ class ToolObject(BaseModel):
     bbox_xyxy: tuple[int, int, int, int]
     bbox_xywh: tuple[int, int, int, int]
     bbox_normalized_xyxy: tuple[float, float, float, float]
+    refinement_bbox_xyxy: tuple[int, int, int, int] | None = None
+    refinement_bbox_normalized_xyxy: tuple[float, float, float, float] | None = None
     centroid_xy: tuple[int, int]
     area_px: int = Field(ge=0)
     outline: list[tuple[int, int]]
     holes: list[list[tuple[int, int]]] = Field(default_factory=list)
     mask_rle: list[int] | None = None
 
-    @field_validator("bbox_xyxy", "bbox_xywh")
+    @field_validator("bbox_xyxy", "bbox_xywh", "refinement_bbox_xyxy")
     @classmethod
-    def validate_box(cls, value: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    def validate_box(
+        cls,
+        value: tuple[int, int, int, int] | None,
+    ) -> tuple[int, int, int, int] | None:
+        if value is None:
+            return value
         if any(coord < 0 for coord in value):
             raise ValueError("box coordinates must be non-negative")
         return value
 
-    @field_validator("bbox_normalized_xyxy")
+    @field_validator("bbox_normalized_xyxy", "refinement_bbox_normalized_xyxy")
     @classmethod
     def validate_normalized_box(
         cls,
-        value: tuple[float, float, float, float],
-    ) -> tuple[float, float, float, float]:
+        value: tuple[float, float, float, float] | None,
+    ) -> tuple[float, float, float, float] | None:
+        if value is None:
+            return value
         if any(coord < 0.0 or coord > 1.0 for coord in value):
             raise ValueError("normalized box coordinates must be between 0 and 1")
         return value
@@ -57,4 +66,3 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     model_dir_exists: bool
     message: str | None = None
-
