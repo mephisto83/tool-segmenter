@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw
 
 from app.backends.base import BackendUnavailable, SegmentationBackend, SegmentationCandidate
 from app.backends.opencv_backend import _detect_dark_drawer_mat
+from app.calibration import detect_light_square_board, mask_overlap_with_board
 from app.postprocess import mask_to_bbox
 
 
@@ -21,11 +22,15 @@ class RoboflowSam3Backend(SegmentationBackend):
         base_url: str,
         api_key: str = "",
         api_key_file: str = "",
+        filter_mode: str = "drawer_mat",
+        calibration_board_size_mm: float = 556.0,
         timeout_seconds: float = 120.0,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key.strip()
         self.api_key_file = api_key_file
+        self.filter_mode = filter_mode
+        self.calibration_board_size_mm = calibration_board_size_mm
         self.timeout_seconds = timeout_seconds
 
     def segment(self, image: Image.Image, prompts: list[str]) -> list[SegmentationCandidate]:
@@ -52,7 +57,12 @@ class RoboflowSam3Backend(SegmentationBackend):
             raise BackendUnavailable(f"Roboflow SAM3 request failed: {exc} {message}") from exc
 
         candidates = _response_to_candidates(response.json(), image.size)
-        return _filter_to_drawer_mat(candidates, image)
+        return _filter_candidates(
+            candidates,
+            image,
+            self.filter_mode,
+            self.calibration_board_size_mm,
+        )
 
     def health(self) -> dict[str, Any]:
         try:
@@ -160,3 +170,32 @@ def _filter_to_drawer_mat(
         if overlap_ratio >= min_overlap_ratio:
             filtered.append(candidate)
     return filtered
+
+
+def _filter_to_light_board(
+    candidates: list[SegmentationCandidate],
+    image: Image.Image,
+    board_size_mm: float,
+    min_overlap_ratio: float = 0.50,
+) -> list[SegmentationCandidate]:
+    calibration = detect_light_square_board(image, board_size_mm)
+    if calibration is None:
+        return candidates
+    return [
+        candidate
+        for candidate in candidates
+        if mask_overlap_with_board(candidate.mask, calibration) >= min_overlap_ratio
+    ]
+
+
+def _filter_candidates(
+    candidates: list[SegmentationCandidate],
+    image: Image.Image,
+    filter_mode: str,
+    board_size_mm: float,
+) -> list[SegmentationCandidate]:
+    if filter_mode == "none":
+        return candidates
+    if filter_mode == "light_board":
+        return _filter_to_light_board(candidates, image, board_size_mm)
+    return _filter_to_drawer_mat(candidates, image)

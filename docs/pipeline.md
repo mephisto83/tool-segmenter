@@ -103,6 +103,43 @@ Use this when:
 - you are implementing local SAM3 crop refinement
 - you are comparing image preprocessing strategies
 
+## 5. Calibrated White-Board Measurement
+
+Command:
+
+```bash
+ROBOFLOW_API_KEY_FILE=~/Documents/roboflow/apikey \
+python -m app.cli.segment_calibrated_image \
+  --image /path/to/white_board_tools.jpeg \
+  --out sample_outputs/calibrated_sam3.json \
+  --backend roboflow_sam3 \
+  --board-size-mm 556 \
+  --prompts "screwdriver,tool bit,scissors,pliers,hand tool" \
+  --annotated sample_outputs/calibrated_sam3.png
+```
+
+Use this when:
+
+- the tools are on a known square white board
+- approximate real-world positions and sizes are useful
+- you want to filter SAM3 detections to the board instead of a dark drawer mat
+
+How it works:
+
+1. Detect the largest light square in the image.
+2. Fit an ordered four-corner board polygon.
+3. Compute a homography from image pixels to board millimeters.
+4. Run SAM3 with `ROBOFLOW_FILTER_MODE=light_board`.
+5. Add per-object millimeter boxes and centroids to the JSON.
+
+The measurement coordinate system is `board_mm_top_left_origin`: `(0, 0)` is the detected top-left board corner, and `(556, 556)` is the bottom-right board corner for a 556 mm board.
+
+Limitations:
+
+- Measurements are approximate and depend on accurate board detection.
+- Tall objects, shadows, backlighting, and perspective can affect masks.
+- `bbox_mm_xywh` is based on the axis-aligned transformed bbox corners, not a physical caliper measurement of the object.
+
 ## Prompt Strategy
 
 Good starting prompts:
@@ -187,4 +224,3 @@ The Roboflow backend already filters against the detected drawer mat. If it is t
 4. Export multiview regions.
 5. If implementing local SAM3, wire the local model into `Sam3MultiViewBackend.segment()`.
 6. Keep the public response schema stable.
-

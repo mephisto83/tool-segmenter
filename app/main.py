@@ -183,6 +183,8 @@ def get_backend(
             active_settings.roboflow_base_url,
             active_settings.roboflow_api_key,
             active_settings.roboflow_api_key_file,
+            active_settings.roboflow_filter_mode,
+            active_settings.calibration_board_size_mm,
         )
     else:
         raise ValueError(f"Unknown backend: {backend_name}")

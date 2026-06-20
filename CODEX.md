@@ -113,10 +113,25 @@ python -m app.cli.export_multiview_regions \
   --backend opencv
 ```
 
+Calibrated white-board run:
+
+```bash
+ROBOFLOW_API_KEY_FILE=~/Documents/roboflow/apikey \
+python -m app.cli.segment_calibrated_image \
+  --image /path/to/white_board_tools.jpeg \
+  --out sample_outputs/calibrated_sam3.json \
+  --backend roboflow_sam3 \
+  --board-size-mm 556 \
+  --prompts "screwdriver,tool bit,scissors,pliers,hand tool" \
+  --annotated sample_outputs/calibrated_sam3.png
+```
+
 ## Important Files
 
 - `app/backends/roboflow_sam3_backend.py`: working hosted SAM3 adapter.
 - `app/backends/opencv_backend.py`: local proposal generation and drawer-mat filtering helpers.
+- `app/calibration.py`: white square board detection and pixel-to-mm homography.
+- `app/cli/segment_calibrated_image.py`: calibrated SAM3 run with mm coordinates.
 - `app/backends/sam3_multiview_backend.py`: future local SAM3 multiview orchestration.
 - `sample_inputs/tool_drawer_sample.jpeg`: metadata-stripped sample image.
 - `.env.example`: environment variable reference.

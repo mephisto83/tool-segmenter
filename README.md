@@ -63,6 +63,32 @@ For deeper implementation notes, see:
 - `docs/architecture.md`
 - `docs/pipeline.md`
 
+## Calibrated White-Board Images
+
+If an image is taken on a known square white background, the app can detect that board and add approximate millimeter coordinates to the output. For example, with a 556 mm x 556 mm board:
+
+```bash
+ROBOFLOW_API_KEY_FILE=~/Documents/roboflow/apikey \
+python -m app.cli.segment_calibrated_image \
+  --image /path/to/white_board_tools.jpeg \
+  --out sample_outputs/calibrated_sam3.json \
+  --backend roboflow_sam3 \
+  --board-size-mm 556 \
+  --prompts "screwdriver,tool bit,scissors,pliers,hand tool" \
+  --annotated sample_outputs/calibrated_sam3.png
+```
+
+The calibrated output adds:
+
+- `calibration.board_size_mm`
+- `calibration.corners_px`
+- `calibration.homography_px_to_mm`
+- per-object `bbox_mm_xyxy`
+- per-object `bbox_mm_xywh`
+- per-object `centroid_mm`
+
+For white-board images, the Roboflow adapter can use `ROBOFLOW_FILTER_MODE=light_board` to keep detections on the detected board instead of filtering to a dark drawer mat.
+
 ## Run With OpenCV Backend
 
 ```bash
